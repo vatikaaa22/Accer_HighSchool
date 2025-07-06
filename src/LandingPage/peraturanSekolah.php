@@ -81,7 +81,7 @@ require_once '../layout/_top.php';
     </span>
     <div class="card mb-10">
             <div class="card-body flex items-center justify-center">
-                <h2 class="font-bold  text-3xl text-center ">TIDAK MENDUKUNG RRO DAN BARCA APALAGI ISRAEL</h2>
+                <h2 class="font-bold  text-3xl text-center ">ACCER HIGH SCHOOL</h2>
             </div>
     </div>
     <!-- END PERATURAN -->
