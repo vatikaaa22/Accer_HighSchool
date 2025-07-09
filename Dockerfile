@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     zip \
     unzip \
+    mariadb-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
@@ -34,6 +35,7 @@ RUN echo '<VirtualHost *:80>\n\
     <Directory /var/www/html>\n\
         AllowOverride All\n\
         Require all granted\n\
+        Options -Indexes\n\
     </Directory>\n\
     ErrorLog ${APACHE_LOG_DIR}/error.log\n\
     CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
@@ -41,6 +43,10 @@ RUN echo '<VirtualHost *:80>\n\
 
 # Expose port 80
 EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
 
 # Start Apache
 CMD ["apache2-foreground"]
