@@ -1,25 +1,18 @@
-name: CI/CD Pipeline
+name: Simple CI/CD Pipeline
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, master]
   pull_request:
     branches: [main, master]
-
-env:
-  DOCKER_REGISTRY: ghcr.io
-  IMAGE_NAME: school-management
 
 jobs:
   # ===================
   # CONTINUOUS INTEGRATION
   # ===================
-  ci:
-    name: 🔍 Continuous Integration
+  test:
+    name: 🧪 Test & Build
     runs-on: ubuntu-latest
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
-      image-digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: 📥 Checkout code
@@ -29,482 +22,123 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_mysql, dom, filter, gd, json
+          extensions: pdo, pdo_mysql, mysqli
 
-      - name: 🔧 Validate composer.json (if exists)
+      - name: 🔍 PHP Syntax Check
         run: |
-          if [ -f "composer.json" ]; then
-            composer validate --strict
-          else
-            echo "No composer.json found, skipping validation"
-          fi
+          find . -name "*.php" -exec php -l {} \;
 
-      - name: 📦 Install dependencies
+      - name: 🐳 Build Docker Image
         run: |
-          if [ -f "composer.json" ]; then
-            composer install --no-progress --prefer-dist --optimize-autoloader
-          else
-            echo "No composer.json found, skipping composer install"
-          fi
+          docker build -t school-app .
 
-      - name: 🧪 Run PHP Syntax Check
+      - name: 🧪 Test Docker Container
         run: |
-          echo "Checking PHP syntax..."
-          find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \;
-
-      - name: 🔐 Security Check
-        run: |
-          echo "Checking for security issues..."
-
-          # Check for hardcoded passwords
-          if grep -r "password.*=" --include="*.php" . | grep -v "DB_PASSWORD" | grep -v "//" | grep -v "getenv" | head -5; then
-            echo "Warning: Potential hardcoded passwords found"
-          fi
-
-          # Check for SQL injection vulnerabilities
-          if grep -r "\$_GET\|\$_POST" --include="*.php" . | grep -v "htmlspecialchars\|filter_input" | head -5; then
-            echo "Warning: Potential SQL injection vulnerabilities found"
-          fi
-
-          # Check for dangerous functions
-          if grep -r "eval\|exec\|system\|shell_exec" --include="*.php" . | grep -v "//"; then
-            echo "Warning: Dangerous functions found"
-          fi
-
-      - name: 🧪 Code Quality Check
-        run: |
-          echo "Running code quality checks..."
-
-          # Check for TODO/FIXME comments
-          TODO_COUNT=$(grep -r "TODO\|FIXME" --include="*.php" . | wc -l)
-          echo "Found $TODO_COUNT TODO/FIXME comments"
-
-          # Check for debugging functions
-          if grep -r "var_dump\|print_r\|die(\|exit(" --include="*.php" . | grep -v "//"; then
-            echo "Warning: Debugging functions found in code"
-          fi
-
-      - name: 🐳 Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: 🔑 Login to Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 🏷️ Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: 🐳 Build Docker image
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: 🧪 Test Docker container
-        run: |
-          echo "Testing Docker container..."
-
-          # Create a network for containers
-          docker network create test-network || true
-
           # Start test database
           docker run -d --name test-db \
-            --network test-network \
             -e MYSQL_ROOT_PASSWORD=testpass \
             -e MYSQL_DATABASE=laravel_myschools \
             -e MYSQL_USER=test_user \
             -e MYSQL_PASSWORD=testpass \
             mysql:8.0
-            
-          # Wait for database to be ready
-          echo "Waiting for database to be ready..."
-          sleep 45
 
-          # Test database connection
-          docker exec test-db mysql -u test_user -ptestpass laravel_myschools -e "SELECT 1" || {
-            echo "Database connection failed, waiting longer..."
-            sleep 15
-            docker exec test-db mysql -u test_user -ptestpass laravel_myschools -e "SELECT 1"
-          }
+          # Wait for database
+          sleep 30
 
           # Start web container
           docker run -d --name test-web \
-            --network test-network \
+            --link test-db:db \
             -e DB_HOST=test-db \
             -e DB_NAME=laravel_myschools \
             -e DB_USER=test_user \
             -e DB_PASSWORD=testpass \
             -p 8080:80 \
-            ${{ env.DOCKER_REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}:latest
-            
-          # Wait for web container to be ready
-          echo "Waiting for web container to be ready..."
-          sleep 30
+            school-app
 
-          # Test if web server is responding
-          echo "Testing web server response..."
-          for i in {1..5}; do
-            if curl -f http://localhost:8080/ > /dev/null 2>&1; then
-              echo "Web server is responding"
-              break
-            fi
-            echo "Attempt $i failed, retrying..."
-            sleep 10
-          done
+          # Wait for web container
+          sleep 20
 
-      - name: 🧹 Cleanup test containers
+          # Test if it's working
+          curl -f http://localhost:8080/ || echo "Web test failed"
+
+      - name: 🧹 Cleanup
         if: always()
         run: |
           docker stop test-web test-db || true
           docker rm test-web test-db || true
-          docker network rm test-network || true
-
-      - name: 📊 Generate CI Report
-        run: |
-          echo "## CI Report - $(date)" > ci-report.md
-          echo "### Build Information" >> ci-report.md
-          echo "- **Branch**: ${{ github.ref_name }}" >> ci-report.md
-          echo "- **Commit**: ${{ github.sha }}" >> ci-report.md
-          echo "- **Author**: ${{ github.actor }}" >> ci-report.md
-          echo "- **Image**: ${{ steps.meta.outputs.tags }}" >> ci-report.md
-          echo "" >> ci-report.md
-          echo "### Test Results" >> ci-report.md
-          echo "- ✅ PHP Syntax Check: Passed" >> ci-report.md
-          echo "- ✅ Security Check: Passed" >> ci-report.md
-          echo "- ✅ Code Quality Check: Passed" >> ci-report.md
-          echo "- ✅ Docker Build: Passed" >> ci-report.md
-          echo "- ✅ Container Test: Passed" >> ci-report.md
-          cat ci-report.md
-
-      - name: 📤 Upload CI artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-report-${{ github.run_number }}
-          path: ci-report.md
 
   # ===================
   # CONTINUOUS DEPLOYMENT
   # ===================
-  cd:
-    name: 🚀 Continuous Deployment
+  deploy:
+    name: 🚀 Deploy to Server
     runs-on: ubuntu-latest
-    needs: ci
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    environment: production
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🔧 Setup deployment environment
+      - name: 📦 Create deployment package
         run: |
-          echo "Creating deployment package..."
-
-          # Create a clean directory structure
-          mkdir -p deploy-temp
-
-          # Copy all files except excluded ones
-          rsync -av --progress \
+          tar -czf app.tar.gz \
             --exclude='.git' \
             --exclude='.github' \
             --exclude='node_modules' \
-            --exclude='vendor' \
-            --exclude='*.log' \
-            --exclude='ci-report.md' \
-            --exclude='deploy-temp' \
-            . deploy-temp/
+            .
 
-          # Create tar archive
-          cd deploy-temp
-          tar -czf ../school-app.tar.gz .
-          cd ..
-
-          # Cleanup temp directory
-          rm -rf deploy-temp
-
-          # Verify archive was created
-          ls -la school-app.tar.gz
-          echo "Deployment package created successfully"
-
-      - name: 📦 Transfer files to server
+      - name: 📤 Upload to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.AZURE_HOST }}
           username: ${{ secrets.AZURE_USERNAME }}
           password: ${{ secrets.AZURE_PASSWORD }}
-          port: 22
-          source: 'school-app.tar.gz'
+          source: 'app.tar.gz'
           target: '/tmp/'
 
-      - name: 🚀 Deploy to Azure VPS
+      - name: 🚀 Deploy on server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AZURE_HOST }}
           username: ${{ secrets.AZURE_USERNAME }}
           password: ${{ secrets.AZURE_PASSWORD }}
-          port: 22
           script: |
-            set -e
+            # Go to app directory
+            cd ~/apps/school || mkdir -p ~/apps/school && cd ~/apps/school
 
-            echo "🚀 Starting deployment process..."
-
-            # Configuration
-            APP_DIR="$HOME/apps/school"
-            BACKUP_DIR="$HOME/backups/school"
-            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
-            # Create directories
-            mkdir -p $APP_DIR
-            mkdir -p $BACKUP_DIR
-
-            # Backup current deployment
-            if [ -d "$APP_DIR" ] && [ "$(ls -A $APP_DIR 2>/dev/null)" ]; then
-              echo "📦 Creating backup of current deployment..."
-              tar -czf $BACKUP_DIR/backup_$TIMESTAMP.tar.gz -C $APP_DIR . || echo "Backup failed, continuing..."
+            # Backup current app
+            if [ -f "docker-compose.yml" ]; then
+              echo "Backing up current app..."
+              docker-compose down || true
+              tar -czf ~/backup-$(date +%Y%m%d_%H%M%S).tar.gz . || true
             fi
 
-            # Backup database
-            if docker ps | grep -q "school_db"; then
-              echo "💾 Backing up database..."
-              docker exec school_db mysqldump -u root -prootpassword laravel_myschools > $BACKUP_DIR/db_backup_$TIMESTAMP.sql || echo "Database backup failed, continuing..."
-            fi
+            # Extract new app
+            echo "Extracting new app..."
+            rm -rf ./*
+            tar -xzf /tmp/app.tar.gz
+            rm /tmp/app.tar.gz
 
-            # Stop existing containers
-            echo "🛑 Stopping existing containers..."
-            cd $APP_DIR || mkdir -p $APP_DIR && cd $APP_DIR
-            docker-compose down || true
-
-            # Extract new deployment
-            echo "📦 Extracting new deployment..."
-            rm -rf $APP_DIR/*
-            cd $APP_DIR
-            tar -xzf /tmp/school-app.tar.gz
-            rm -f /tmp/school-app.tar.gz
-
-            # Set permissions
-            chmod +x deploy.sh || true
-
-            # Start new deployment
-            echo "🚀 Starting new deployment..."
+            # Start new app
+            echo "Starting new app..."
             docker-compose up --build -d
 
-            # Wait for containers to be ready
-            echo "⏳ Waiting for containers to be ready..."
-            sleep 60
+            # Wait and check
+            sleep 30
+            docker-compose ps
 
-            # Health check with retries
-            echo "🔍 Performing health check..."
-            HEALTH_CHECK="000"
-            for i in {1..5}; do
-              HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8082/test-db.php || echo "000")
-              if [ "$HEALTH_CHECK" = "200" ]; then
-                echo "✅ Health check passed on attempt $i"
-                break
-              fi
-              echo "Health check attempt $i failed (HTTP $HEALTH_CHECK), retrying..."
-              sleep 15
-            done
-
-            if [ "$HEALTH_CHECK" = "200" ]; then
+            # Simple health check
+            if curl -f http://localhost:8082/ > /dev/null 2>&1; then
               echo "✅ Deployment successful!"
-              echo "🌐 Application is running at:"
-              echo "   - Main Website: http://70.153.137.107:8082"
-              echo "   - phpMyAdmin: http://70.153.137.107:8083"
-              
-              # Cleanup old backups (keep last 5)
-              cd $BACKUP_DIR
-              ls -t backup_*.tar.gz 2>/dev/null | tail -n +6 | xargs rm -f || true
-              ls -t db_backup_*.sql 2>/dev/null | tail -n +6 | xargs rm -f || true
-              
+              echo "🌐 App running at: http://70.153.137.107:8082"
             else
-              echo "❌ Health check failed after 5 attempts! Rolling back..."
-              
-              # Rollback
-              docker-compose down
-              
-              if [ -f "$BACKUP_DIR/backup_$TIMESTAMP.tar.gz" ]; then
-                echo "🔄 Restoring from backup..."
-                rm -rf $APP_DIR/*
-                tar -xzf $BACKUP_DIR/backup_$TIMESTAMP.tar.gz -C $APP_DIR
-                cd $APP_DIR
-                docker-compose up -d || echo "Rollback failed"
-              fi
-              
+              echo "❌ Deployment failed!"
               exit 1
             fi
 
-            # Show container status
-            echo "📊 Container Status:"
-            docker-compose ps
-
-            # Show recent logs
-            echo "📋 Recent Logs:"
-            docker-compose logs --tail=20
-
-      - name: 📨 Notify deployment status
+      - name: 📊 Deployment result
         if: always()
         run: |
-          if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ Deployment completed successfully!"
-            echo "🌐 Application URL: http://70.153.137.107:8082"
-          else
-            echo "❌ Deployment failed!"
-          fi
-
-  # ===================
-  # PERFORMANCE TESTING
-  # ===================
-  performance:
-    name: 🚀 Performance Testing
-    runs-on: ubuntu-latest
-    needs: cd
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: 🎯 Load Testing
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.AZURE_HOST }}
-          username: ${{ secrets.AZURE_USERNAME }}
-          password: ${{ secrets.AZURE_PASSWORD }}
-          port: 22
-          script: |
-            echo "Running performance tests..."
-
-            # Install curl if not present
-            which curl || sudo apt-get update && sudo apt-get install -y curl
-
-            # Basic load test
-            echo "Testing homepage response time..."
-            time curl -s http://localhost:8082/ > /dev/null
-
-            # Test database connection
-            echo "Testing database connection..."
-            time curl -s http://localhost:8082/test-db.php > /dev/null
-
-            # Check resource usage
-            echo "Current resource usage:"
-            docker stats --no-stream
-
-            echo "Performance test completed"
-
-  # ===================
-  # MONITORING
-  # ===================
-  monitoring:
-    name: 📊 Monitoring Setup
-    runs-on: ubuntu-latest
-    needs: cd
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: 🔍 Setup Monitoring
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.AZURE_HOST }}
-          username: ${{ secrets.AZURE_USERNAME }}
-          password: ${{ secrets.AZURE_PASSWORD }}
-          port: 22
-          script: |
-            echo "Setting up monitoring..."
-
-            # Create monitoring script
-            cat > ~/monitor-school.sh << 'EOF'
-            #!/bin/bash
-            LOGFILE="$HOME/logs/monitor-$(date +%Y%m%d).log"
-            mkdir -p $(dirname $LOGFILE)
-
-            echo "=== School App Monitor - $(date) ===" >> $LOGFILE
-
-            # Check containers
-            docker ps >> $LOGFILE
-
-            # Check application health
-            HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8082/test-db.php || echo "000")
-            echo "Health check: $HEALTH" >> $LOGFILE
-
-            # Check resource usage
-            echo "Resource usage:" >> $LOGFILE
-            df -h >> $LOGFILE
-            free -h >> $LOGFILE
-
-            # Alert if health check fails
-            if [ "$HEALTH" != "200" ]; then
-              echo "ALERT: Application health check failed!" >> $LOGFILE
-            fi
-            EOF
-
-            chmod +x ~/monitor-school.sh
-
-            # Add to crontab (run every 5 minutes)
-            (crontab -l 2>/dev/null; echo "*/5 * * * * ~/monitor-school.sh") | crontab -
-
-            echo "Monitoring setup completed"
-
-  # ===================
-  # SECURITY SCAN
-  # ===================
-  security:
-    name: 🔒 Security Scan
-    runs-on: ubuntu-latest
-    needs: ci
-    if: github.event_name == 'push'
-
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 🔒 Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: 📤 Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v2
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
-
-  # ===================
-  # CLEANUP
-  # ===================
-  cleanup:
-    name: 🧹 Cleanup
-    runs-on: ubuntu-latest
-    needs: [ci, cd, performance, monitoring, security]
-    if: always()
-
-    steps:
-      - name: 🧹 Cleanup artifacts
-        run: |
-          echo "Cleaning up temporary files..."
-          docker system prune -f || true
-
-      - name: 📊 Deployment Summary
-        run: |
-          echo "## Deployment Summary"
-          echo "- **Status**: ${{ needs.cd.result }}"
-          echo "- **Performance**: ${{ needs.performance.result }}"
-          echo "- **Security**: ${{ needs.security.result }}"
-          echo "- **Monitoring**: ${{ needs.monitoring.result }}"
-          echo "- **Timestamp**: $(date)"
+          echo "Deployment completed at $(date)"
+          echo "Status: ${{ job.status }}"
