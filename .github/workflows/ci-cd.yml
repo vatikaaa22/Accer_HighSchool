@@ -82,11 +82,26 @@ jobs:
 
       - name: 📦 Create deployment package
         run: |
+          echo "Creating deployment package..."
+
+          # Method 1: Using tar with warning suppression
           tar -czf app.tar.gz \
             --exclude='.git' \
             --exclude='.github' \
             --exclude='node_modules' \
-            .
+            --exclude='vendor' \
+            --exclude='*.log' \
+            --warning=no-file-changed \
+            . || [ $? -eq 1 ]
+
+          # Verify the archive was created
+          if [ -f "app.tar.gz" ]; then
+            ls -la app.tar.gz
+            echo "✅ Package created successfully"
+          else
+            echo "❌ Package creation failed"
+            exit 1
+          fi
 
       - name: 📤 Upload to server
         uses: appleboy/scp-action@v0.1.7
@@ -111,7 +126,7 @@ jobs:
             if [ -f "docker-compose.yml" ]; then
               echo "Backing up current app..."
               docker-compose down || true
-              tar -czf ~/backup-$(date +%Y%m%d_%H%M%S).tar.gz . || true
+              tar -czf ~/backup-$(date +%Y%m%d_%H%M%S).tar.gz . 2>/dev/null || true
             fi
 
             # Extract new app
@@ -125,15 +140,28 @@ jobs:
             docker-compose up --build -d
 
             # Wait and check
-            sleep 30
+            sleep 45
             docker-compose ps
 
-            # Simple health check
-            if curl -f http://localhost:8082/ > /dev/null 2>&1; then
-              echo "✅ Deployment successful!"
-              echo "🌐 App running at: http://70.153.137.107:8082"
-            else
-              echo "❌ Deployment failed!"
+            # Enhanced health check
+            echo "Running health check..."
+            HEALTH_CHECK_PASSED=false
+            for i in {1..10}; do
+              if curl -f http://localhost:8082/ > /dev/null 2>&1; then
+                echo "✅ Deployment successful!"
+                echo "🌐 App running at: http://70.153.137.107:8082"
+                echo "🗃️ phpMyAdmin: http://70.153.137.107:8083"
+                HEALTH_CHECK_PASSED=true
+                break
+              fi
+              echo "Health check attempt $i failed, retrying in 10 seconds..."
+              sleep 10
+            done
+
+            if [ "$HEALTH_CHECK_PASSED" = false ]; then
+              echo "❌ Deployment failed after 10 attempts!"
+              echo "📋 Container logs:"
+              docker-compose logs --tail=50
               exit 1
             fi
 
