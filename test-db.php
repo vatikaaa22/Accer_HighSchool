@@ -1,7 +1,7 @@
 <?php
 echo "<h1>Database Connection Test</h1>";
 
-// Test environment variables
+// Test environment variable
 echo "<h2>Environment Variables:</h2>";
 echo "DB_HOST: " . (getenv('DB_HOST') ?: 'not set') . "<br>";
 echo "DB_NAME: " . (getenv('DB_NAME') ?: 'not set') . "<br>";
