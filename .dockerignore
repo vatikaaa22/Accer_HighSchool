@@ -1,0 +1,19 @@
+# Ignore Docker related files
+.dockerignore
+*.log
+.git
+.gitignore
+README.md
+DOCKER_README.md
+
+# Ignore node_modules if exists
+node_modules
+npm-debug.log
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore temporary files
+*.tmp
+*.temp
