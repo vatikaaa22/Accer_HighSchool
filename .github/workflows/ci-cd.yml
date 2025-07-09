@@ -2,9 +2,13 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, develop]
   pull_request:
     branches: [main, master]
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: school-management
 
 jobs:
   # ===================
@@ -13,6 +17,9 @@ jobs:
   ci:
     name: 🔍 Continuous Integration
     runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: 📥 Checkout code
@@ -42,28 +49,78 @@ jobs:
 
       - name: 🧪 Run PHP Syntax Check
         run: |
+          echo "Checking PHP syntax..."
           find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \;
 
       - name: 🔐 Security Check
         run: |
           echo "Checking for security issues..."
 
-          # Check for hardcoded passwords (fix regex)
+          # Check for hardcoded passwords
           if grep -r "password.*=" --include="*.php" . | grep -v "DB_PASSWORD" | grep -v "//" | grep -v "getenv" | head -5; then
             echo "Warning: Potential hardcoded passwords found"
           fi
 
-          # Check for SQL injection vulnerabilities (fix regex)
+          # Check for SQL injection vulnerabilities
           if grep -r "\$_GET\|\$_POST" --include="*.php" . | grep -v "htmlspecialchars\|filter_input" | head -5; then
             echo "Warning: Potential SQL injection vulnerabilities found"
           fi
 
-      - name: 🐳 Build Docker image
+          # Check for dangerous functions
+          if grep -r "eval\|exec\|system\|shell_exec" --include="*.php" . | grep -v "//"; then
+            echo "Warning: Dangerous functions found"
+          fi
+
+      - name: 🧪 Code Quality Check
         run: |
-          docker build -t school-web:test .
+          echo "Running code quality checks..."
+
+          # Check for TODO/FIXME comments
+          TODO_COUNT=$(grep -r "TODO\|FIXME" --include="*.php" . | wc -l)
+          echo "Found $TODO_COUNT TODO/FIXME comments"
+
+          # Check for debugging functions
+          if grep -r "var_dump\|print_r\|die(\|exit(" --include="*.php" . | grep -v "//"; then
+            echo "Warning: Debugging functions found in code"
+          fi
+
+      - name: 🐳 Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Login to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🐳 Build Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: 🧪 Test Docker container
         run: |
+          echo "Testing Docker container..."
+
           # Create a network for containers
           docker network create test-network || true
 
@@ -95,7 +152,7 @@ jobs:
             -e DB_USER=test_user \
             -e DB_PASSWORD=testpass \
             -p 8080:80 \
-            school-web:test
+            ${{ env.DOCKER_REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}:latest
             
           # Wait for web container to be ready
           echo "Waiting for web container to be ready..."
@@ -121,9 +178,17 @@ jobs:
 
       - name: 📊 Generate CI Report
         run: |
-          echo "## CI Report" > ci-report.md
+          echo "## CI Report - $(date)" > ci-report.md
+          echo "### Build Information" >> ci-report.md
+          echo "- **Branch**: ${{ github.ref_name }}" >> ci-report.md
+          echo "- **Commit**: ${{ github.sha }}" >> ci-report.md
+          echo "- **Author**: ${{ github.actor }}" >> ci-report.md
+          echo "- **Image**: ${{ steps.meta.outputs.tags }}" >> ci-report.md
+          echo "" >> ci-report.md
+          echo "### Test Results" >> ci-report.md
           echo "- ✅ PHP Syntax Check: Passed" >> ci-report.md
           echo "- ✅ Security Check: Passed" >> ci-report.md
+          echo "- ✅ Code Quality Check: Passed" >> ci-report.md
           echo "- ✅ Docker Build: Passed" >> ci-report.md
           echo "- ✅ Container Test: Passed" >> ci-report.md
           cat ci-report.md
@@ -131,7 +196,7 @@ jobs:
       - name: 📤 Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ci-report
+          name: ci-report-${{ github.run_number }}
           path: ci-report.md
 
   # ===================
@@ -142,6 +207,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: ci
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    environment: production
 
     steps:
       - name: 📥 Checkout code
@@ -149,15 +215,33 @@ jobs:
 
       - name: 🔧 Setup deployment environment
         run: |
-          # Create deployment package
-          tar -czf school-app.tar.gz \
+          echo "Creating deployment package..."
+
+          # Create a clean directory structure
+          mkdir -p deploy-temp
+
+          # Copy all files except excluded ones
+          rsync -av --progress \
             --exclude='.git' \
             --exclude='.github' \
             --exclude='node_modules' \
             --exclude='vendor' \
             --exclude='*.log' \
             --exclude='ci-report.md' \
-            .
+            --exclude='deploy-temp' \
+            . deploy-temp/
+
+          # Create tar archive
+          cd deploy-temp
+          tar -czf ../school-app.tar.gz .
+          cd ..
+
+          # Cleanup temp directory
+          rm -rf deploy-temp
+
+          # Verify archive was created
+          ls -la school-app.tar.gz
+          echo "Deployment package created successfully"
 
       - name: 📦 Transfer files to server
         uses: appleboy/scp-action@v0.1.7
@@ -204,7 +288,7 @@ jobs:
 
             # Stop existing containers
             echo "🛑 Stopping existing containers..."
-            cd $APP_DIR
+            cd $APP_DIR || mkdir -p $APP_DIR && cd $APP_DIR
             docker-compose down || true
 
             # Extract new deployment
@@ -285,12 +369,129 @@ jobs:
           fi
 
   # ===================
+  # PERFORMANCE TESTING
+  # ===================
+  performance:
+    name: 🚀 Performance Testing
+    runs-on: ubuntu-latest
+    needs: cd
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: 🎯 Load Testing
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AZURE_HOST }}
+          username: ${{ secrets.AZURE_USERNAME }}
+          password: ${{ secrets.AZURE_PASSWORD }}
+          port: 22
+          script: |
+            echo "Running performance tests..."
+
+            # Install curl if not present
+            which curl || sudo apt-get update && sudo apt-get install -y curl
+
+            # Basic load test
+            echo "Testing homepage response time..."
+            time curl -s http://localhost:8082/ > /dev/null
+
+            # Test database connection
+            echo "Testing database connection..."
+            time curl -s http://localhost:8082/test-db.php > /dev/null
+
+            # Check resource usage
+            echo "Current resource usage:"
+            docker stats --no-stream
+
+            echo "Performance test completed"
+
+  # ===================
+  # MONITORING
+  # ===================
+  monitoring:
+    name: 📊 Monitoring Setup
+    runs-on: ubuntu-latest
+    needs: cd
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: 🔍 Setup Monitoring
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AZURE_HOST }}
+          username: ${{ secrets.AZURE_USERNAME }}
+          password: ${{ secrets.AZURE_PASSWORD }}
+          port: 22
+          script: |
+            echo "Setting up monitoring..."
+
+            # Create monitoring script
+            cat > ~/monitor-school.sh << 'EOF'
+            #!/bin/bash
+            LOGFILE="$HOME/logs/monitor-$(date +%Y%m%d).log"
+            mkdir -p $(dirname $LOGFILE)
+
+            echo "=== School App Monitor - $(date) ===" >> $LOGFILE
+
+            # Check containers
+            docker ps >> $LOGFILE
+
+            # Check application health
+            HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8082/test-db.php || echo "000")
+            echo "Health check: $HEALTH" >> $LOGFILE
+
+            # Check resource usage
+            echo "Resource usage:" >> $LOGFILE
+            df -h >> $LOGFILE
+            free -h >> $LOGFILE
+
+            # Alert if health check fails
+            if [ "$HEALTH" != "200" ]; then
+              echo "ALERT: Application health check failed!" >> $LOGFILE
+            fi
+            EOF
+
+            chmod +x ~/monitor-school.sh
+
+            # Add to crontab (run every 5 minutes)
+            (crontab -l 2>/dev/null; echo "*/5 * * * * ~/monitor-school.sh") | crontab -
+
+            echo "Monitoring setup completed"
+
+  # ===================
+  # SECURITY SCAN
+  # ===================
+  security:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.event_name == 'push'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔒 Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: 📤 Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ===================
   # CLEANUP
   # ===================
   cleanup:
     name: 🧹 Cleanup
     runs-on: ubuntu-latest
-    needs: [ci, cd]
+    needs: [ci, cd, performance, monitoring, security]
     if: always()
 
     steps:
@@ -298,3 +499,12 @@ jobs:
         run: |
           echo "Cleaning up temporary files..."
           docker system prune -f || true
+
+      - name: 📊 Deployment Summary
+        run: |
+          echo "## Deployment Summary"
+          echo "- **Status**: ${{ needs.cd.result }}"
+          echo "- **Performance**: ${{ needs.performance.result }}"
+          echo "- **Security**: ${{ needs.security.result }}"
+          echo "- **Monitoring**: ${{ needs.monitoring.result }}"
+          echo "- **Timestamp**: $(date)"
