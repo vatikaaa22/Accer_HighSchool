@@ -10,7 +10,7 @@
 </div>
 
 <span class="min-h-screen">
-    <div class="grid gap-2 my-5 px-10">
+    <div class="grid gap-5 p-10 bg-gray-800">
         <?php
             include '../../helper/connection.php';
 
@@ -27,7 +27,7 @@
         ?>
 
         <span class="flex">
-            <div class="card card-side w-full bg-gray-950 shadow-xl text-white" data-aos="fade-in">
+            <div class="card card-side w-full bg-gray-300 shadow-xl text-black" data-aos="fade-in">
             <img src="../Admin/uploads/<?php echo $data["image"]?>"  class="rounded-l-lg shadow-2xl max-w-lg max-h-[20rem]">
                 <div class="card-body">
                     <small>Berita Terkini</small>

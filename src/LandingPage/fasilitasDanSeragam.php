@@ -9,7 +9,7 @@ require_once '../layout/_top.php';
     </ul>
 </div>
 
-<span class="h-screen flex items-center justify-center gap-5 flex-wrap">
+<span class="min-h-screen flex items-center justify-center gap-5 flex-wrap py-5">
     <?php
                 include '../../helper/connection.php';
     
@@ -27,8 +27,15 @@ require_once '../layout/_top.php';
                 while($data = mysqli_fetch_array($query)){
     ?>
 
-    <div class="card w-96 bg-gray-800 shadow-xl text-white" data-aos="zoom-out">
-        <figure><img src="../Admin/uploads/<?php echo $data["image"] ?>" class="min-h-[20rem] max-h-[21rem]" /></figure>
+    <div class="card w-96 bg-gray-800 shadow-xl text-white h-[35rem] border border-gray-200" data-aos="zoom-out">
+        <figure class="w-full h-[19rem] overflow-hidden">
+        <img 
+            src="../Admin/uploads/<?php echo $data['image']; ?>" 
+            alt="Cover Image" 
+            class="w-full h-full object-cover" 
+        />
+        </figure>
+
         <div class="card-body">
             <h2 class="card-title text-3xl">
                 <?php echo $data['name'] ?>

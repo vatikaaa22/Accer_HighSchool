@@ -56,7 +56,7 @@ if (isset($_POST['submit'])) {
                 <span id="passwordError" class="text-red-500 text-sm hidden">Please enter a password</span>
 
                 <div class="text-white flex items-center justify-center gap-2 w-full mt-5">
-                    <a class="btn w-1/2 text-white" href="../landingPage/index.php">kembali</a>
+                    <a class="btn w-1/2 text-white bg-black" href="../landingPage/index.php">kembali</a>
                     <button class="btn w-1/2 text-white bg-black" type="submit" name="submit">login</button>
                 </div>
             </div>

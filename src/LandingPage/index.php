@@ -14,11 +14,11 @@ require_once '../layout/_top.php';
     </div>
 
     <div class="w-full min-[10rem] " id="berita">
-        <h1 class="text-white text-center font-bold text-3xl py-5 ">&mdash;  Berita dan Acara &mdash; </h1>
+        <h1 class="text-white text-center font-bold text-3xl py-10 bg-gray-800 ">&mdash;  Berita dan Acara &mdash; </h1>
 
-        <div class="flex items-center justify-center pt-5">
+        <div class="flex items-center justify-center bg-gray-800">
 
-            <div class="flex items-center justify-center gap-5 pb-10 flex-wrap max-w-[95rem]" data-aos="fade-up">
+            <div class="flex items-center justify-center gap-5 text-white pb-10 flex-wrap" data-aos="fade-up">
     
             <?php
                 include '../../helper/connection.php';
@@ -37,7 +37,7 @@ require_once '../layout/_top.php';
                 while($data = mysqli_fetch_array($query)){
             ?>
     
-                <div class="flex items-start gap-5 max-w-lg flex-col py-5 shadow-lg border border-gray-800 rounded-box px-5">
+                <div class="flex items-start gap-5 max-w-lg flex-col h-[40rem] justify-center shadow-lg border border-gray-800 bg-gray-300 text-black rounded-box px-5">
                         <img src="../Admin/uploads/<?php echo $data["image"] ?>" class="max-w-md rounded-lg shadow-2xl max-h-60" />
                         <h1 class="text-3xl font-bold"><?php echo $data["title"] ?></h1>
                         <p class="py-3 text-justify max-w-md max-h-32 overflow-hidden"><?php echo $data["description"] ?></p>
