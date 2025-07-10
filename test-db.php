@@ -51,4 +51,23 @@ try {
 } catch (Exception $e) {
     echo "<p style='color: red;'>✗ MySQLi failed: " . $e->getMessage() . "</p>";
 }
+
+// Additional database connection test
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$database", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    echo "✅ Database connection successful!<br>";
+    echo "Host: $host<br>";
+    echo "Database: $database<br>";
+    echo "User: $username<br>";
+    
+    // Test query for table count
+    $stmt = $pdo->query("SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '$database'");
+    $result = $stmt->fetch();
+    echo "Tables in database: " . $result['count'] . "<br>";
+    
+} catch (PDOException $e) {
+    echo "❌ Database connection failed: " . $e->getMessage();
+}
 ?>
