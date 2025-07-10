@@ -1,6 +1,6 @@
 <?php
     include '../../helper/connection.php';
-    include '../Layout/Admin/_top.php';
+    include '../layout/Admin/_top.php';
 ?>
 
     <div class="grid items-center ps-[20rem] pt-[7rem]">
@@ -45,5 +45,5 @@
     </dialog>
 
 <?php
-    include '../Layout/Admin/_bottom.php';
+    include '../layout/Admin/_bottom.php';
 ?>

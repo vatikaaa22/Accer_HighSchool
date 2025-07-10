@@ -27,7 +27,7 @@
             <li><a href="../LandingPage/fasilitasDanSeragam.php">Fasilitas & Seragam</a></li>
             <li><a href="../LandingPage/berita.php">Berita</a></li>
             <li><a href="../LandingPage/infoPembayaran.php">Info Pembayaran</a></li>
-            <li><a href="../LandingPage/hubungiKami.php">Hubungi Kami</a></li>
+            <li><a href="../LandingPage/hubungikami.php">Hubungi Kami</a></li>
             </ul>
         </div>
         <div class="navbar-end">

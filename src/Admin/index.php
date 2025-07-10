@@ -1,6 +1,6 @@
 <?php
     require_once '../../helper/connection.php';
-    require_once '../Layout/Admin/_top.php';
+    require_once '../layout/Admin/_top.php';
 ?>
 
     <!-- Page content here -->
@@ -171,7 +171,7 @@
     </div>
 
 <?php
-    require_once '../Layout/Admin/_bottom.php';
+    require_once '../layout/Admin/_bottom.php';
 ?>
 
 

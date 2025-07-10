@@ -1,7 +1,7 @@
 <?php
     include '../../helper/connection.php';
     include '../../helper/auth.php';
-    include '../Layout/Admin/_top.php';
+    include '../layout/Admin/_top.php';
 ?>
 
 <!-- Page content here -->
@@ -201,7 +201,7 @@
 </script>
 
 <?php
-    include '../Layout/Admin/_bottom.php';
+    include '../layout/Admin/_bottom.php';
 ?>
 
 
