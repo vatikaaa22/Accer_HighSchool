@@ -7,7 +7,7 @@
         // Hapus data dari database
         $sql = "DELETE FROM eskuls WHERE eskul_id = $id";
         if (mysqli_query($connection, $sql)) {
-            echo "Data berhasil dihapus";
+            // echo "Data berhasil dihapus";
             header('Location: ../eskul.php');
             exit();
         } else {

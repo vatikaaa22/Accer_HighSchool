@@ -13,7 +13,7 @@
     $stmt->execute();
 
     if ($stmt->affected_rows > 0) {
-        echo json_encode(["success" => "Data inserted successfully"]);
+        // echo json_encode(["success" => "Data inserted successfully"]);
         // Moved header before any output to ensure it works correctly
         header('Location: ../event.php');
         exit(); // Added exit to prevent further script execution after redirection

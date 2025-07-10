@@ -25,7 +25,7 @@
 
     // Jika file berhasil di upload 
     if (move_uploaded_file($lokasifile, $uploadfile)) { 
-        echo "Nama File <b>$namafile</b> sukses di upload";
+        // echo "Nama File <b>$namafile</b> sukses di upload";
 
         // Masukkan informasi file ke dalam database 
         $sql = "INSERT INTO informations(title, image, information_date, description, location, user_id) 

@@ -21,7 +21,7 @@
         // Hapus data dari database
         $sql = "DELETE FROM informations WHERE information_id = $id";
         if (mysqli_query($connection, $sql)) {
-            echo "Data dan gambar berhasil dihapus";
+            // echo "Data dan gambar berhasil dihapus";
             header('Location: ../information.php');
             exit();
         } else {

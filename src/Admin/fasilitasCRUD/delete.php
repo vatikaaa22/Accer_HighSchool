@@ -21,7 +21,7 @@
         // Hapus data dari database
         $sql = "DELETE FROM facilities WHERE facility_id = $id";
         if (mysqli_query($connection, $sql)) {
-            echo "Data dan gambar berhasil dihapus";
+            // echo "Data dan gambar berhasil dihapus";
             header('Location: ../fasilitas.php');
             exit();
         } else {

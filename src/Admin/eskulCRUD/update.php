@@ -28,7 +28,7 @@ if (isset($_FILES['img']) && $_FILES['img']['error'] == 0) {
     $uploadfile = $uploaddir . $namafile;
 
     if (move_uploaded_file($lokasifile, $uploadfile)) { 
-        echo "Nama File <b>$namafile</b> sukses di upload";
+        // echo "Nama File <b>$namafile</b> sukses di upload";
 
         // Hapus file lama jika ada
         if ($old_image && file_exists($uploaddir . $old_image)) {

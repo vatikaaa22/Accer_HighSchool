@@ -14,7 +14,7 @@
     $stmt->execute();
 
     if ($stmt->affected_rows > 0) {
-        echo json_encode(["success" => "Data inserted successfully"]);
+        // echo json_encode(["success" => "Data inserted successfully"]);
         header('Location: ../../contact.php');
     } else {
         echo json_encode(["error" => "Failed to insert data"]);

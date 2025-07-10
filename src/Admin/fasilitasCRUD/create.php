@@ -20,7 +20,7 @@
 
     // Jika file berhasil di upload 
     if (move_uploaded_file($lokasifile, $uploadfile)) { 
-        echo "Nama File <b>$namafile</b> sukses di upload";
+        // echo "Nama File <b>$namafile</b> sukses di upload";
 
         $name = $_POST["name"];
         $description = $_POST["description"];

@@ -7,7 +7,7 @@
         // Hapus data dari database
         $sql = "DELETE FROM events WHERE event_id = $id";
         if (mysqli_query($connection, $sql)) {
-            echo "Data berhasil dihapus";
+            // echo "Data berhasil dihapus";
             header('Location: ../event.php');
             exit();
         } else {
