@@ -33,7 +33,7 @@
         $stmt->execute();
 
         if ($stmt->affected_rows > 0) {
-            echo json_encode(["success" => "Data inserted successfully"]);
+            // echo json_encode(["success" => "Data inserted successfully"]);
             header('Location: ../fasilitas.php');
             exit();
         } else {
