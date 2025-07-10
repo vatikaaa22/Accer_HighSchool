@@ -1,9 +1,9 @@
 <?php
 // Database configuration for Docker
-$host = getenv('DB_HOST') ?: 'db';
+$host = getenv('DB_HOST') ?: 'localhost';
 $database = getenv('DB_NAME') ?: 'laravel_myschools';
-$username = getenv('DB_USER') ?: 'school_user';
-$password = getenv('DB_PASSWORD') ?: 'school123';
+$username = getenv('DB_USER') ?: 'root';
+$password = getenv('DB_PASSWORD') ?: '';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$database;charset=utf8", $username, $password);
